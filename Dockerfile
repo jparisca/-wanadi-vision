@@ -3,8 +3,12 @@ FROM python:3.11-slim
 # Establecer variables de entorno
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
-ENV HF_HOME=/app/.cache/huggingface
+ENV PYTHONPATH=/home/user/app
+ENV HF_HOME=/home/user/app/.cache/huggingface
+ENV HOME=/home/user
+ENV PATH=/home/user/.local/bin:$PATH
+# Puerto requerido por HuggingFace Spaces
+ENV PORT=7860
 
 # Instalar dependencias del sistema necesarias para FAISS y numpy
 RUN apt-get update && apt-get install -y \
@@ -13,8 +17,14 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Crear usuario no-root requerido por HuggingFace Spaces
+RUN useradd -m -u 1000 user
+
 # Establecer directorio de trabajo
-WORKDIR /app
+WORKDIR /home/user/app
+
+# Cambiar a usuario no-root
+USER user
 
 # Copiar requirements primero para aprovechar caché de capas Docker
 COPY requirements.txt .
@@ -37,12 +47,12 @@ RUN mkdir -p /app/.cache/huggingface && chmod 777 /app/.cache/huggingface
 # Copiar el resto del proyecto
 COPY . .
 
-# Exponer el puerto
-EXPOSE 8000
+# Puerto de HuggingFace Spaces
+EXPOSE 7860
 
-# Healthcheck a nivel Docker usando el readiness probe
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health/ready || exit 1
+# Healthcheck usando el puerto de HF Spaces
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:7860/api/v1/health/ready || exit 1
 
 # Iniciar ambos servicios (API y Bot)
 CMD ["./start.sh"]
