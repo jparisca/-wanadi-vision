@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: wanadi-vision
+    env: docker
+    region: ohio
+    plan: starter # Permite uso de disco persistente. Cambiar a 'free' si no se necesita persistencia de disco.
+    healthCheckPath: /api/v1/health/ready
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_CHAT_ID
+        sync: false
+      - key: NEXUS_API_URL
+        value: http://127.0.0.1:8000/api/v1 # El bot accede a la API de forma local dentro del mismo contenedor
+    disk:
+      name: wanadi-data
+      mountPath: /app/database # Montamos el directorio de la BD para que los SQLite sean persistentes
+      sizeGB: 1

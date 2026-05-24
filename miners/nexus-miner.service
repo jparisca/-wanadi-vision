@@ -1,0 +1,18 @@
+[Unit]
+Description=Nexus Prompt Miner — Pipeline de Ingestión Autónomo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/media/obsidian/disco local1/prompt_nexus
+ExecStart=/media/obsidian/disco local1/prompt_nexus/venv/bin/python miners/scheduler.py --interval 12
+Restart=on-failure
+RestartSec=30s
+StandardOutput=append:/media/obsidian/disco local1/prompt_nexus/logs/miner_scheduler.log
+StandardError=append:/media/obsidian/disco local1/prompt_nexus/logs/miner_scheduler.log
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

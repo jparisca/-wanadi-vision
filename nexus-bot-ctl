@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# nexus-bot-ctl — Gestor del Bot de Telegram
+# Uso:
+#   ./nexus-bot-ctl start    — lanzar bot en background
+#   ./nexus-bot-ctl stop     — detener bot
+#   ./nexus-bot-ctl restart  — restart limpio
+#   ./nexus-bot-ctl status   — ver estado y últimas líneas del log
+#   ./nexus-bot-ctl tail     — seguir logs en vivo
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_PYTHON="${SCRIPT_DIR}/venv/bin/python"
+BOT_SCRIPT="${SCRIPT_DIR}/bot/main.py"
+ENV_FILE="${SCRIPT_DIR}/bot/.env"
+LOG_FILE="${SCRIPT_DIR}/logs/bot.log"
+PID_FILE="${SCRIPT_DIR}/logs/bot.pid"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+
+mkdir -p "${SCRIPT_DIR}/logs"
+
+is_running() {
+    [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
+
+check_env() {
+    if [[ ! -f "$ENV_FILE" ]]; then
+        echo -e "${RED}❌ Falta el archivo: bot/.env${NC}"
+        echo -e "   Copia la plantilla: ${CYAN}cp bot/.env.example bot/.env${NC}"
+        echo -e "   Luego edita: ${CYAN}nano bot/.env${NC}"
+        exit 1
+    fi
+    # Cargar variables
+    set -a; source "$ENV_FILE"; set +a
+    if [[ -z "${BOT_TOKEN:-}" || "$BOT_TOKEN" == "TU_BOT_TOKEN_AQUI" ]]; then
+        echo -e "${RED}❌ BOT_TOKEN no configurado en bot/.env${NC}"
+        echo -e "   1. Habla con @BotFather en Telegram"
+        echo -e "   2. Usa /newbot y copia el token"
+        echo -e "   3. Ponlo en bot/.env como: BOT_TOKEN=1234567890:ABCdef..."
+        exit 1
+    fi
+}
+
+cmd_start() {
+    check_env
+    if is_running; then
+        echo -e "${YELLOW}⚠  Bot ya está corriendo (PID $(cat "$PID_FILE"))${NC}"
+        exit 0
+    fi
+    echo -e "${CYAN}🤖 Iniciando Nexus Prompt Bot...${NC}"
+    set -a; source "$ENV_FILE"; set +a
+    nohup "$VENV_PYTHON" "$BOT_SCRIPT" >> "$LOG_FILE" 2>&1 &
+    echo $! > "$PID_FILE"
+    sleep 2
+    if is_running; then
+        echo -e "${GREEN}✅ Bot iniciado — PID $(cat "$PID_FILE")${NC}"
+        echo -e "   Logs: ${LOG_FILE}"
+        echo ""
+        echo -e "${CYAN}── Primeros mensajes del log: ──────────────────────${NC}"
+        tail -5 "$LOG_FILE" 2>/dev/null || true
+    else
+        echo -e "${RED}❌ El bot no pudo iniciarse. Revisa:${NC}"
+        tail -20 "$LOG_FILE" 2>/dev/null || echo "(sin logs)"
+        exit 1
+    fi
+}
+
+cmd_stop() {
+    if ! is_running; then
+        echo -e "${YELLOW}⚠  Bot no está corriendo.${NC}"
+        rm -f "$PID_FILE"; exit 0
+    fi
+    PID=$(cat "$PID_FILE")
+    echo -e "${CYAN}🛑 Deteniendo bot (PID ${PID})...${NC}"
+    kill -SIGTERM "$PID" 2>/dev/null || true
+    sleep 2
+    is_running && kill -SIGKILL "$PID" 2>/dev/null || true
+    rm -f "$PID_FILE"
+    echo -e "${GREEN}✅ Bot detenido.${NC}"
+}
+
+cmd_status() {
+    if is_running; then
+        PID=$(cat "$PID_FILE")
+        echo -e "${GREEN}● Nexus Bot ACTIVO — PID ${PID}${NC}"
+        echo -e "  Logs   : ${LOG_FILE}"
+        echo -e "  Uptime : $(ps -o etime= -p "$PID" 2>/dev/null | xargs)"
+        echo ""
+        echo -e "${CYAN}── Últimas 15 líneas del log: ──────────────────────${NC}"
+        tail -15 "$LOG_FILE" 2>/dev/null || echo "  (sin logs aún)"
+    else
+        echo -e "${RED}○ Nexus Bot INACTIVO${NC}"
+        rm -f "$PID_FILE"
+    fi
+}
+
+case "${1:-}" in
+    start)   cmd_start ;;
+    stop)    cmd_stop ;;
+    restart) cmd_stop; sleep 2; cmd_start ;;
+    status)  cmd_status ;;
+    tail)    echo -e "${CYAN}📄 Siguiendo logs (Ctrl+C para salir)...${NC}"; tail -f "$LOG_FILE" ;;
+    *)
+        echo "Uso: $0 {start|stop|restart|status|tail}"
+        exit 1
+        ;;
+esac

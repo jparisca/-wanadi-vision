@@ -1,0 +1,24 @@
+# Entornos virtuales
+venv/
+env/
+.venv/
+.env
+
+# Archivos de caché y compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Bases de datos (SQLite)
+*.db
+*.sqlite3
+nexus_prompts.db
+nexus_bot.db
+
+# Logs
+logs/
+*.log
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db

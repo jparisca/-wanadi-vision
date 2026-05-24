@@ -1,0 +1,329 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "\ud83c\udf0c Nexus Prompt API",
+    "description": "\n    El motor de recuperaci\u00f3n sem\u00e1ntica h\u00edbrida m\u00e1s avanzado para prompts de im\u00e1genes de Inteligencia Artificial.\n    \n    ### Caracter\u00edsticas:\n    * **Similitud Sem\u00e1ntica Local**: Vectorizaci\u00f3n r\u00e1pida con `all-MiniLM-L6-v2`.\n    * **Ranking H\u00edbrido Ponderado**: Equilibrio de similitud sem\u00e1ntica (85%) y engagement viral normalizado logar\u00edtmicamente (15%).\n    * **Filtros Estrictos**: Exclusi\u00f3n de ruido conceptual (umbral >= 0.45) y filtro por motores de IA.\n    * **Explainability Total**: Desglose transparente de scores.\n    ",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/search": {
+      "get": {
+        "tags": [
+          "Retrieval Engine"
+        ],
+        "summary": "Get Search Results",
+        "description": "Endpoint principal para realizar b\u00fasquedas sem\u00e1nticas h\u00edbridas con explainability y filtros de motor.",
+        "operationId": "get_search_results_api_v1_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "description": "Texto a buscar sem\u00e1nticamente",
+              "title": "Q"
+            },
+            "description": "Texto a buscar sem\u00e1nticamente"
+          },
+          {
+            "name": "engine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtro opcional por motor de generaci\u00f3n (Midjourney, Flux, Stable Diffusion)",
+              "title": "Engine"
+            },
+            "description": "Filtro opcional por motor de generaci\u00f3n (Midjourney, Flux, Stable Diffusion)"
+          },
+          {
+            "name": "top_k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "N\u00famero m\u00e1ximo de resultados a retornar",
+              "default": 5,
+              "title": "Top K"
+            },
+            "description": "N\u00famero m\u00e1ximo de resultados a retornar"
+          },
+          {
+            "name": "variant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(A|B|a|b)$",
+              "description": "Variante de ranking: A (puro sem\u00e1ntico), B (h\u00edbrido con engagement)",
+              "default": "B",
+              "title": "Variant"
+            },
+            "description": "Variante de ranking: A (puro sem\u00e1ntico), B (h\u00edbrido con engagement)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/metrics": {
+      "get": {
+        "tags": [
+          "Retrieval Engine"
+        ],
+        "summary": "Get Operational Metrics",
+        "description": "Expone m\u00e9tricas operacionales del motor de b\u00fasqueda (Latencia P50/P95, Cache Hit Rate, Index Stats y Queue Metrics) desde memoria r\u00e1pida.",
+        "operationId": "get_operational_metrics_api_v1_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/live": {
+      "get": {
+        "tags": [
+          "Health Check"
+        ],
+        "summary": "Liveness Probe",
+        "description": "Indicates whether the application process is running and able to accept requests.",
+        "operationId": "liveness_probe_api_v1_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "tags": [
+          "Health Check"
+        ],
+        "summary": "Readiness Probe",
+        "description": "Indicates whether the application is fully initialized, database is reachable, and the search index is loaded.",
+        "operationId": "readiness_probe_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "SearchResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "engine_filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Filter"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResultItem"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "limit",
+          "results"
+        ],
+        "title": "SearchResponse"
+      },
+      "SearchResultItem": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "semantic": {
+            "type": "number",
+            "title": "Semantic"
+          },
+          "engagement": {
+            "type": "number",
+            "title": "Engagement"
+          },
+          "raw_engagement": {
+            "type": "number",
+            "title": "Raw Engagement"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parameters"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "hash_id": {
+            "type": "string",
+            "title": "Hash Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "semantic",
+          "engagement",
+          "raw_engagement",
+          "engine",
+          "prompt",
+          "hash_id"
+        ],
+        "title": "SearchResultItem"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  nexus-api:
+    build: .
+    image: prompt-nexus-api:latest
+    container_name: nexus-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Montar la base de datos y archivos de índice para persistencia
+      - ./nexus_prompts.db:/app/nexus_prompts.db
+      - ./nexus_faiss.index:/app/nexus_faiss.index
+      - ./nexus_mappings.json:/app/nexus_mappings.json
+      # Montar el caché de HF para no descargar los modelos en cada reinicio
+      - huggingface_cache:/app/.cache/huggingface
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  huggingface_cache:

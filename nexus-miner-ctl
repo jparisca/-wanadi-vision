@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# nexus-miner-ctl — Gestor del daemon de ingestión autónoma
+# Uso:
+#   ./nexus-miner-ctl start      — lanzar en background (cada 12h)
+#   ./nexus-miner-ctl stop       — detener daemon
+#   ./nexus-miner-ctl status     — estado y PID activo
+#   ./nexus-miner-ctl restart    — restart limpio
+#   ./nexus-miner-ctl run-once   — un solo ciclo ahora mismo
+#   ./nexus-miner-ctl tail       — ver logs en vivo
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_PYTHON="${SCRIPT_DIR}/venv/bin/python"
+SCHEDULER="${SCRIPT_DIR}/miners/scheduler.py"
+LOG_FILE="${SCRIPT_DIR}/logs/miner_scheduler.log"
+PID_FILE="${SCRIPT_DIR}/logs/miner.pid"
+INTERVAL_HOURS="${MINER_INTERVAL_HOURS:-12}"
+
+# Colores
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+
+mkdir -p "${SCRIPT_DIR}/logs"
+
+is_running() {
+    [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
+
+cmd_start() {
+    if is_running; then
+        echo -e "${YELLOW}⚠  Daemon ya está corriendo (PID $(cat "$PID_FILE"))${NC}"
+        exit 0
+    fi
+    echo -e "${CYAN}🚀 Iniciando Nexus Miner Daemon (ciclos cada ${INTERVAL_HOURS}h)...${NC}"
+    nohup "$VENV_PYTHON" "$SCHEDULER" --interval "$INTERVAL_HOURS" \
+        >> "$LOG_FILE" 2>&1 &
+    echo $! > "$PID_FILE"
+    sleep 1
+    if is_running; then
+        echo -e "${GREEN}✅ Daemon iniciado — PID $(cat "$PID_FILE")${NC}"
+        echo -e "   Logs: ${LOG_FILE}"
+    else
+        echo -e "${RED}❌ El daemon no pudo iniciarse. Revisa: tail -50 ${LOG_FILE}${NC}"
+        exit 1
+    fi
+}
+
+cmd_stop() {
+    if ! is_running; then
+        echo -e "${YELLOW}⚠  Daemon no está corriendo.${NC}"
+        rm -f "$PID_FILE"
+        exit 0
+    fi
+    PID=$(cat "$PID_FILE")
+    echo -e "${CYAN}🛑 Deteniendo daemon (PID ${PID})...${NC}"
+    kill -SIGTERM "$PID"
+    for i in $(seq 1 10); do
+        sleep 1
+        is_running || break
+    done
+    if is_running; then
+        kill -SIGKILL "$PID" 2>/dev/null || true
+    fi
+    rm -f "$PID_FILE"
+    echo -e "${GREEN}✅ Daemon detenido.${NC}"
+}
+
+cmd_status() {
+    if is_running; then
+        PID=$(cat "$PID_FILE")
+        echo -e "${GREEN}● Nexus Miner ACTIVO — PID ${PID}${NC}"
+        echo -e "  Logs   : ${LOG_FILE}"
+        echo -e "  Uptime : $(ps -o etime= -p "$PID" 2>/dev/null | xargs)"
+        echo ""
+        echo -e "${CYAN}── Últimas 10 líneas del log: ──────────────────────${NC}"
+        tail -10 "$LOG_FILE" 2>/dev/null || echo "  (sin logs aún)"
+    else
+        echo -e "${RED}○ Nexus Miner INACTIVO${NC}"
+        rm -f "$PID_FILE"
+    fi
+}
+
+cmd_run_once() {
+    echo -e "${CYAN}⛏  Ejecutando un ciclo de ingestión ahora...${NC}"
+    "$VENV_PYTHON" "$SCHEDULER" --once
+}
+
+cmd_tail() {
+    echo -e "${CYAN}📄 Siguiendo logs (Ctrl+C para salir)...${NC}"
+    tail -f "$LOG_FILE"
+}
+
+case "${1:-}" in
+    start)    cmd_start ;;
+    stop)     cmd_stop ;;
+    restart)  cmd_stop; sleep 2; cmd_start ;;
+    status)   cmd_status ;;
+    run-once) cmd_run_once ;;
+    tail)     cmd_tail ;;
+    *)
+        echo "Uso: $0 {start|stop|restart|status|run-once|tail}"
+        exit 1
+        ;;
+esac
